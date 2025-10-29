@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+
+{% block title %}Agent Dashboard - Chatbot Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+.chat-container {
+    height: 60vh;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    overflow: hidden;
+}
+
+.chat-messages {
+    height: calc(100% - 60px);
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+.chat-input {
+    height: 60px;
+    border-top: 1px solid #dee2e6;
+    padding: 0.5rem;
+}
+
+.message {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    max-width: 80%;
+}
+
+.user-message {
+    background-color: #007bff;
+    color: white;
+}
+
+.bot-message {
+    background-color: #e9ecef;
+    color: #333;
+}
+
+.agent-message {
+    background-color: #28a745;
+    color: white;
+    margin-left: auto;
+}
+
+.session-list {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.session-item {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.session-item:hover {
+    background-color: #f8f9fa;
+}
+
+.session-item.active {
+    background-color: #e3f2fd;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Escalated Chats</h5>
+                <button class="btn btn-sm btn-outline-primary" id="refreshSessions">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="session-list" id="sessionList">
+                    {% for session in sessions %}
+                    <div class="session-item p-3 border-bottom" data-session-id="{{ session.id }}">
+                        <div class="d-flex justify-content-between">
+                            <strong>Session #{{ session.session_id[:8] }}...</strong>
+                            <span class="badge bg-warning">Escalated</span>
+                        </div>
+                        <small class="text-muted">
+                            User: {{ session.user.username }}<br>
+                            Started: {{ session.created_at.strftime('%H:%M') }}<br>
+                            Messages: {{ session.message_count }}
+                        </small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0" id="currentSessionTitle">Select a chat session</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="chat-container">
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="text-center text-muted mt-5">
+                            <i class="fas fa-comments fa-3x mb-3"></i>
+                            <p>Select a chat session from the list to start responding</p>
+                        </div>
+                    </div>
+                    <div class="chat-input" id="chatInput" style="display: none;">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="messageInput" placeholder="Type your response...">
+                            <button class="btn btn-primary" id="sendButton">
+                                <i class="fas fa-paper-plane"></i> Send
+                            </button>
+                        </div>
+                        <div class="mt-2">
+                            <button class="btn btn-danger btn-sm" id="closeSessionBtn">
+                                <i class="fas fa-times"></i> Close Session
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentSessionId = null;
+
+// Load escalated sessions
+function loadSessions() {
+    $.get('/agent/api/escalated_sessions', function(sessions) {
+        const sessionList = $('#sessionList');
+        sessionList.empty();
+        
+        if (sessions.length === 0) {
+            sessionList.html('<div class="p-3 text-center text-muted">No escalated chats</div>');
+            return;
+        }
+        
+        sessions.forEach(session => {
+            const sessionHtml = `
+                <div class="session-item p-3 border-bottom" data-session-id="${session.id}">
+                    <div class="d-flex justify-content-between">
+                        <strong>Session #${session.session_id.substring(0, 8)}...</strong>
+                        <span class="badge bg-warning">Escalated</span>
+                    </div>
+                    <small class="text-muted">
+                        User: ${session.username}<br>
+                        Started: ${new Date(session.created_at).toLocaleTimeString()}<br>
+                        Messages: ${session.message_count}
+                    </small>
+                </div>
+            `;
+            sessionList.append(sessionHtml);
+        });
+        
+        // Re-attach click handlers
+        $('.session-item').on('click', function() {
+            const sessionId = $(this).data('session-id');
+            selectSession(sessionId);
+        });
+    });
+}
+
+// Select session
+function selectSession(sessionId) {
+    currentSessionId = sessionId;
+    
+    // Update UI
+    $('.session-item').removeClass('active');
+    $(`.session-item[data-session-id="${sessionId}"]`).addClass('active');
+    $('#chatInput').show();
+    
+    // Load session messages
+    loadSessionMessages(sessionId);
+}
+
+// Load session messages
+function loadSessionMessages(sessionId) {
+    $.get(`/agent/api/session/${sessionId}/messages`, function(messages) {
+        const chatMessages = $('#chatMessages');
+        chatMessages.empty();
+        
+        if (messages.length === 0) {
+            chatMessages.html('<div class="text-center text-muted mt-5">No messages in this session</div>');
+            return;
+        }
+        
+        messages.forEach(msg => {
+            const messageClass = msg.type === 'user' ? 'user-message' : 
+                               msg.type === 'agent' ? 'agent-message' : 'bot-message';
+            const messageHtml = `
+                <div class="message ${messageClass}">
+                    <div class="message-content">${msg.content}</div>
+                    <small class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</small>
+                </div>
+            `;
+            chatMessages.append(messageHtml);
+        });
+        
+        chatMessages.scrollTop(chatMessages[0].scrollHeight);
+    });
+}
+
+// Send agent message
+function sendMessage() {
+    const message = $('#messageInput').val().trim();
+    if (!message || !currentSessionId) return;
+    
+    $('#messageInput').val('');
+    
+    // Add agent message immediately
+    const chatMessages = $('#chatMessages');
+    const agentMessageHtml = `
+        <div class="message agent-message">
+            <div class="message-content">${message}</div>
+            <small class="message-time">${new Date().toLocaleTimeString()}</small>
+        </div>
+    `;
+    chatMessages.append(agentMessageHtml);
+    chatMessages.scrollTop(chatMessages[0].scrollHeight);
+    
+    // Send to server
+    $.post('/agent/api/send_agent_message', {
+        session_id: currentSessionId,
+        message: message
+    }, function(response) {
+        if (!response.success) {
+            alert('Error sending message');
+        }
+    });
+}
+
+// Close session
+function closeSession() {
+    if (!currentSessionId) return;
+    
+    if (confirm('Are you sure you want to close this session?')) {
+        $.post('/agent/api/close_session', {
+            session_id: currentSessionId
+        }, function(response) {
+            if (response.success) {
+                alert('Session closed successfully');
+                loadSessions();
+                $('#chatMessages').html('<div class="text-center text-muted mt-5">Select a chat session from the list</div>');
+                $('#chatInput').hide();
+                currentSessionId = null;
+            } else {
+                alert('Error closing session');
+            }
+        });
+    }
+}
+
+// Event listeners
+$(document).ready(function() {
+    loadSessions();
+    
+    $('#refreshSessions').on('click', loadSessions);
+    $('#sendButton').on('click', sendMessage);
+    $('#closeSessionBtn').on('click', closeSession);
+    
+    $('#messageInput').on('keypress', function(e) {
+        if (e.which === 13) { // Enter key
+            sendMessage();
+        }
+    });
+    
+    // Poll for new sessions and messages
+    setInterval(() => {
+        loadSessions();
+        if (currentSessionId) {
+            loadSessionMessages(currentSessionId);
+        }
+    }, 3000);
+});
+</script>
+{% endblock %}

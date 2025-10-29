@@ -1,0 +1,76 @@
+:root {
+    --primary-color: #007bff;
+    --secondary-color: #6c757d;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --info-color: #17a2b8;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.card {
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    border: 1px solid #e3e6f0;
+}
+
+.stats-card {
+    border-left: 0.25rem solid !important;
+}
+
+.chat-messages {
+    background-color: #f8f9fa;
+}
+
+.message {
+    word-wrap: break-word;
+}
+
+.rating-stars {
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.rating-stars .star {
+    color: #ffc107;
+}
+
+.session-item {
+    cursor: pointer;
+}
+
+.session-item:hover {
+    background-color: #f8f9fa;
+}
+
+.session-item.active {
+    background-color: #e3f2fd;
+    border-left: 4px solid #007bff;
+}
+
+.kb-item, .user-item {
+    transition: all 0.2s;
+}
+
+.kb-item:hover, .user-item:hover {
+    transform: translateX(5px);
+}
+
+.btn {
+    border-radius: 0.35rem;
+}
+
+.form-control {
+    border-radius: 0.35rem;
+}
+
+.alert {
+    border-radius: 0.35rem;
+}
